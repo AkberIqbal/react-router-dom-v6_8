@@ -4,8 +4,10 @@ import {
   Form,
   NavLink,
   useNavigation,
+  useSubmit,
 } from "react-router-dom";
 import { getContacts, createContact } from "../contacts";
+import { useEffect } from "react";
 
 /* 
 This is where the "old school web" programming model shows up. As we discussed earlier, 
@@ -21,33 +23,61 @@ export async function action() {
   return { contact };
 }
 
-export async function loader() {
-  const contacts = await getContacts();
+export async function loader({ request }) {
+  const url = new URL(request.url);
+  const q = url.searchParams.get("q");
+
+  const contacts = await getContacts(q);
   console.log("loader contacts:", contacts);
-  return { contacts };
+  return { contacts, q };
 }
 
 export default function Root() {
-  const { contacts } = useLoaderData();
+  const { contacts, q } = useLoaderData();
   const navigation = useNavigation();
-  console.log("navigation:", navigation);
+  // console.log("navigation:", navigation);
+  const submit = useSubmit();
+
+  const searching =
+    navigation.location &&
+    new URLSearchParams(navigation.location.search).has("q");
+
+  useEffect(() => {
+    document.getElementById("q").value = q;
+  }, [q]);
 
   return (
     <>
       <div id="sidebar">
         <h1>React Router Contacts</h1>
         <div>
-          <form id="search-form" role="search">
+          <Form id="search-form" role="search">
             <input
+              /**
+               * Because this is a GET, not a POST, React Router does not call the action.
+               * Submitting a GET form is the same as clicking a link: only the URL changes. That's why
+               * the code we added for filtering is in the loader, not the action of this route.
+               *
+               * This also means it's a normal page navigation. You can click the back button
+               * to get back to where you were.
+               */
               id="q"
               aria-label="Search contacts"
               placeholder="Search"
               type="search"
               name="q"
+              className={searching ? "loading" : ""}
+              defaultValue={q}
+              onChange={(event) => {
+                const isFirstSearch = q === null;
+                submit(event.currentTarget.form, {
+                  replace: !isFirstSearch,
+                });
+              }}
             />
-            <div id="search-spinner" aria-hidden hidden={true} />
+            <div id="search-spinner" aria-hidden hidden={!searching} />
             <div className="sr-only" aria-live="polite"></div>
-          </form>
+          </Form>
           <Form method="post">
             <button type="submit">New</button>
           </Form>
